@@ -18,7 +18,7 @@ namespace SDLTest
 		
 		private static bool m_QuitRequested;
 		private static function int WndProc(System.Windows.HWnd hwnd, int32 uMsg, int wParam, int lParam);
-		private static WndProc m_SLDWndProc;
+		private static WndProc m_SDLWndProc;
 
 		public this()
 		{
@@ -58,7 +58,7 @@ namespace SDLTest
 
 			//Store the pointer to SDL's windowproc
 			int addr = Windows.GetWindowLong(sysInfo.info.win.window, Windows.GWL_WNDPROC);
-			m_SLDWndProc = (.)addr;
+			m_SDLWndProc = (.)addr;
 
 			//Set the actual WndProc to our own custom one.
 			WndProc customProc = => WindowProc;
@@ -176,7 +176,7 @@ namespace SDLTest
 				}
 			}
 
-			return m_SLDWndProc(hwnd, uMsg, wParam, lParam);
+			return m_SDLWndProc(hwnd, uMsg, wParam, lParam);
 		}
 
 		public ~this()
