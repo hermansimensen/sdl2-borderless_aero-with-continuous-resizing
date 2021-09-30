@@ -17,6 +17,8 @@ namespace SDLTest
 		private static int m_MinHeight;
 		
 		private static bool m_QuitRequested;
+		private static function int WndProc(System.Windows.HWnd hwnd, int32 uMsg, int wParam, int lParam);
+		private static WndProc m_SLDWndProc;
 
 		public this()
 		{
@@ -48,11 +50,18 @@ namespace SDLTest
 
 			SDL.SetWindowMinimumSize(m_Window, (int32) m_MinWidth, (int32) m_MinWidth);
 
+			//Add a hittest through SDL's own API.
+			SDL.SetWindowHitTest(m_Window, => HitTest, (void*)0);
+
 			SDL.SDL_SysWMinfo sysInfo = .();
 			SDL.GetWindowWMInfo(m_Window, ref sysInfo);
 
-			function int(System.Windows.HWnd hwnd, int32 uMsg, int wParam, int lParam) customProc = => WindowProc;
+			//Store the pointer to SDL's windowproc
+			int addr = Windows.GetWindowLong(sysInfo.info.win.window, Windows.GWL_WNDPROC);
+			m_SLDWndProc = (.)addr;
 
+			//Set the actual WndProc to our own custom one.
+			WndProc customProc = => WindowProc;
 			Windows.SetWindowLong(sysInfo.info.win.window, Windows.GWL_WNDPROC, (int) (void*) customProc);
 
 			return true;
@@ -67,7 +76,18 @@ namespace SDLTest
 
 			while(!m_QuitRequested)
 			{
-				SDL.PumpEvents();
+				//Poll for events.
+				SDL.Event event = .();
+				while(SDL.PollEvent(out event) != 0)
+				{
+					switch(event.type)
+					{
+						default:
+						{
+							
+						}
+					}
+				}
 
 				int remaining;
 
@@ -109,28 +129,43 @@ namespace SDLTest
 
 			SDL.RenderPresent(m_Renderer);
 		}
-		public static void CoordsToWindowPoint(int x, int y, out int xx, out int yy)
+
+		public static SDL.HitTestResult HitTest(SDL.Window win, SDL.Point* area, void* data)
 		{
-			SDL.SDL_SysWMinfo sysInfo = .();
-			SDL.GetWindowWMInfo(m_Window, ref sysInfo);
+			if(area.x <= 2 && area.y <= 2)
+				return .ResizeTopLeft;
 
-			RECT bounds = .();
-			GetWindowRect(sysInfo.info.win.window, out bounds);
+			if(area.x >= m_WindowWidth - 2 && area.y <= 2)
+				return .ResizeTopRight;
 
-			xx = x - bounds.Left;
-			yy = y - bounds.Top;
+			if(area.x <= 2 && area.y >= m_WindowHeight - 2)
+				return .ResizeBottomLeft;
+
+			if(area.x >= m_WindowWidth - 2 && area.y >= m_WindowHeight - 2)
+				return .ResizeBottomRight;
+
+			if(area.x <= 2)
+				return .ResizeLeft;
+
+			if(area.x >= m_WindowWidth - 2)
+				return .ResizeRight;
+
+			if(area.y <= 2)
+				return .ResizeTop;
+
+			if(area.y >= m_WindowHeight - 2)
+				return .ResizeBottom;
+
+			if(area.y <= 25)
+				return .Draggable;
+
+			return .Normal;
 		}
 
 		public static int WindowProc(System.Windows.HWnd hwnd, int32 uMsg, int wParam, int lParam)
 		{
-			SDL.Event e = .();
 			switch(uMsg)
 			{
-				case 2: //WM_DESTROY
-				{
-					m_QuitRequested = true;
-				}
-
 				case 5: //WM_SIZE
 				{
 					int x = LOWORD(lParam);
@@ -139,70 +174,9 @@ namespace SDLTest
 					Resize(x, y);
 					Draw();
 				}
-
-				case 36: //WM_GETMINMAXINFO 
-				{
-					MINMAXINFO* info = (MINMAXINFO*) (void*) lParam;
-					info.ptMinTrackSize.x = (int32) m_MinWidth;
-					info.ptMinTrackSize.y = (int32) m_MinHeight;
-					return 0;
-				}
-
-				case 131: //WM_NCCALCSIZE
-				{
-					return 0;
-				}
-
-				case 132: //WM_NCHITTEST
-				{
-					int x = LOWORD(lParam);
-					int y = HIWORD(lParam);
-
-					CoordsToWindowPoint(x, y, out x, out y);
-
-					if(x <= 2 && y <= 2)
-						return 13;
-
-					if(x >= m_WindowWidth - 2 && y <= 2)
-						return 14;
-
-					if(x <= 2 && y >= m_WindowHeight - 2)
-						return 16;
-
-					if(x >= m_WindowWidth - 2 && y >= m_WindowHeight - 2)
-						return 17;
-
-					if(x <= 2)
-						return 10;
-
-					if(x >= m_WindowWidth - 2)
-						return 11;
-
-					if(y <= 2)
-						return 12;
-
-					if(y >= m_WindowHeight - 2)
-						return 15;
-
-					if(y <= 25)
-						return 2;
-
-					return 0;
-				}
-
-				default:
-				{
-
-				}
 			}
 
-			return DefWindowProcA(hwnd, uMsg, wParam, lParam);
-		}
-
-		private static void Exit()
-		{
-			SDL.Quit();
-			m_QuitRequested = true;
+			return m_SLDWndProc(hwnd, uMsg, wParam, lParam);
 		}
 
 		public ~this()
